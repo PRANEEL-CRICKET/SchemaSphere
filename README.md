@@ -41,7 +41,12 @@ Environment variables:
 3. Vercel detects `vercel.json` and builds `api/index.py` with `@vercel/python`.
 4. Static assets under `/static` are served directly.
 
-## API endpoints
+## Deploy on Streamlit
+
+Deploy on Streamlit Cloud by pointing it at `streamlit_app.py`:
+
+- https://share.streamlit.io/deploy
+
 
 - `GET /api/schema` — current schema.
 - `POST /api/sql/import` — import a SQLite script (`{ "sql": "..." }`).
