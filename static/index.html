@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101d32" />
+    <meta name="description" content="Explore, understand, and monitor your database schema." />
+    <title>SchemaSphere — Database Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/cytoscape@3.23.0/dist/cytoscape.min.js"></script>
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #172844;
+            --muted: #6c7d99;
+            --subtle: #98a7bd;
+            --line: #e5ebf4;
+            --paper: #ffffff;
+            --canvas: #f4f7fc;
+            --navy: #101d32;
+            --navy-2: #172a46;
+            --blue: #2868f5;
+            --blue-soft: #eaf1ff;
+            --green: #13a879;
+            --green-soft: #e4f8f0;
+            --amber: #e89a22;
+            --amber-soft: #fff3de;
+            --red: #e44e58;
+            --shadow: 0 12px 32px rgba(26, 54, 94, .055);
+            font-family: "DM Sans", sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-width: 320px; min-height: 100vh; color: var(--ink); background: var(--canvas); }
+        button, input, select { font: inherit; }
+        button { color: inherit; }
+        .app-shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); }
+        .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 20; width: 244px; display: flex; flex-direction: column; padding: 20px 14px 16px; color: #d4e0f1; background: radial-gradient(ellipse at 12% 0%, rgba(44, 107, 218, .16), transparent 34%), linear-gradient(165deg, #142540, #101b2d 70%); }
+        .brand { display: flex; align-items: center; gap: 11px; padding: 1px 8px 25px; }
+        .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; color: #d7fbff; border: 1px solid rgba(80, 216, 228, .4); border-radius: 12px; background: linear-gradient(145deg, #11bac5, #087f9d); box-shadow: 0 6px 22px rgba(0, 196, 213, .22); }
+        .brand-mark svg { width: 22px; height: 22px; }
+        .brand-name { font: 700 15px "Space Grotesk", sans-serif; color: #f5f8fd; letter-spacing: -.25px; }
+        .brand-caption { margin-top: 2px; color: #8ea2bf; font-size: 10px; }
+        .nav-label { margin: 17px 10px 8px; color: #7286a4; font-size: 9px; font-weight: 700; letter-spacing: 1.25px; text-transform: uppercase; }
+        .nav-list { display: grid; gap: 4px; }
+        .nav-item { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid transparent; border-radius: 9px; color: #b9c8dc; background: transparent; text-align: left; cursor: pointer; transition: color .2s, background .2s, transform .2s, border-color .2s; }
+        .nav-item svg { width: 17px; height: 17px; flex: 0 0 auto; color: #90a6c4; }
+        .nav-item span { font-size: 12px; font-weight: 500; }
+        .nav-item:hover { color: white; background: rgba(255,255,255,.055); transform: translateX(2px); }
+        .nav-item.active { color: #fff; border-color: rgba(92, 148, 255, .24); background: linear-gradient(100deg, rgba(45, 107, 211, .43), rgba(33, 74, 132, .3)); box-shadow: inset 3px 0 #58a4ff; }
+        .nav-item.active svg { color: #91c4ff; }
+        .sidebar-spacer { flex: 1; }
+        .sidebar-card { position: relative; overflow: hidden; padding: 15px 13px; border: 1px solid rgba(113, 151, 204, .2); border-radius: 11px; background: linear-gradient(145deg, rgba(38, 67, 107, .47), rgba(20, 37, 62, .6)); }
+        .sidebar-card::after { position: absolute; right: -22px; bottom: -34px; width: 90px; height: 90px; border-radius: 50%; background: rgba(54, 136, 250, .1); content: ""; filter: blur(3px); }
+        .sidebar-card-title { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; color: #f1f6ff; font-size: 11px; font-weight: 600; }
+        .sidebar-card-title svg { width: 16px; color: #7db5ff; }
+        .sidebar-card p { margin: 0 0 9px 25px; color: #9db0ca; font-size: 10px; line-height: 1.5; }
+        .sidebar-version { margin-left: 25px; color: #768ba9; font-size: 9px; }
+        .main-column { grid-column: 2; min-width: 0; }
+        .topbar { position: sticky; top: 0; z-index: 15; height: 62px; display: flex; align-items: center; gap: 20px; padding: 0 27px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.91); backdrop-filter: blur(18px); }
+        .mobile-brand { display: none; }
+        .search-wrap { position: relative; flex: 1; max-width: 560px; }
+        .search-wrap svg { position: absolute; top: 50%; left: 12px; width: 16px; transform: translateY(-50%); color: #8999b0; pointer-events: none; }
+        .search-input { width: 100%; height: 36px; padding: 0 70px 0 36px; border: 1px solid #e4eaf3; border-radius: 8px; outline: none; color: var(--ink); background: #fbfcff; font-size: 11px; transition: border .2s, box-shadow .2s; }
+        .search-input:focus { border-color: #99b9ff; box-shadow: 0 0 0 3px rgba(40,104,245,.09); }
+        .search-shortcut { position: absolute; top: 8px; right: 9px; padding: 2px 6px; border: 1px solid #e7ecf3; border-radius: 5px; color: #8292aa; background: white; font-size: 9px; }
+        .topbar-spacer { flex: 1; }
+        .connection-chip { display: inline-flex; align-items: center; gap: 8px; min-width: 112px; padding: 7px 10px; border: 1px solid #e5ebf3; border-radius: 8px; color: #40536f; background: #fff; }
+        .connection-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(19,168,121,.1); }
+        .connection-chip strong { display: block; font-size: 10px; font-weight: 600; }
+        .connection-chip small { display: block; margin-top: 1px; color: #8696ac; font-size: 9px; }
+        .icon-button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 9px; color: #62748e; background: transparent; cursor: pointer; transition: background .2s, color .2s; }
+        .icon-button:hover { color: var(--blue); background: var(--blue-soft); }
+        .icon-button svg { width: 17px; height: 17px; }
+        .profile { display: flex; align-items: center; gap: 8px; padding-left: 11px; border-left: 1px solid var(--line); }
+        .avatar { width: 30px; height: 30px; display: grid; place-items: center; border: 2px solid #e8eef8; border-radius: 50%; color: #fff; background: linear-gradient(145deg,#315f9e,#183862); font-size: 10px; font-weight: 600; }
+        .profile-copy strong { display: block; color: #263955; font-size: 10px; font-weight: 600; }
+        .profile-copy small { display: block; margin-top: 1px; color: #8b9bb2; font-size: 9px; }
+        .content { max-width: 1640px; margin: 0 auto; padding: 23px 26px 32px; }
+        .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 18px; animation: rise-in .45s both; }
+        .eyebrow { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; color: #91a0b5; font-size: 9px; font-weight: 700; letter-spacing: 1.05px; text-transform: uppercase; }
+        .eyebrow-dot { width: 5px; height: 5px; border-radius: 50%; background: #45b7a2; }
+        h1 { margin: 0; color: #152947; font: 700 23px "Space Grotesk", sans-serif; letter-spacing: -.65px; }
+        .page-subtitle { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+        .heading-actions { display: flex; gap: 8px; }
+        .button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 0 11px; border: 1px solid #e1e8f2; border-radius: 8px; color: #536781; background: #fff; font-size: 10px; font-weight: 600; cursor: pointer; transition: border .2s, transform .2s, box-shadow .2s, background .2s; }
+        .button svg { width: 14px; height: 14px; }
+        .button:hover { border-color: #b8ccf6; box-shadow: 0 5px 12px rgba(41, 81, 149, .08); transform: translateY(-1px); }
+        .button.primary { border-color: var(--blue); color: #fff; background: linear-gradient(135deg,#3477fa,#2462e9); box-shadow: 0 5px 13px rgba(40,104,245,.18); }
+        .button.primary:hover { background: #1f5bdf; }
+        .button:disabled { opacity: .5; cursor: wait; transform: none; }
+        .metrics-grid { display: grid; grid-template-columns: 1.45fr repeat(4, minmax(110px, 1fr)); gap: 12px; margin-bottom: 13px; }
+        .panel { border: 1px solid #e5ebf3; border-radius: 10px; background: var(--paper); box-shadow: var(--shadow); }
+        .dashboard-sql-panel { margin-bottom: 13px; padding: 16px; }
+        .dashboard-sql-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+        .dashboard-sql-top h2 { margin: 0; color: #263d5b; font: 700 13px "Space Grotesk",sans-serif; }
+        .dashboard-sql-top p { margin: 4px 0 0; color: #8291a7; font-size: 9px; line-height: 1.5; }
+        .dashboard-sql-editor { display: block; width: 100%; min-height: 190px; margin-top: 12px; resize: vertical; padding: 12px; border: 1px solid #233b59; border-radius: 8px; outline: none; color: #dce9fb; background: #132139; font: 10px/1.65 Consolas,Monaco,monospace; tab-size: 2; }
+        .dashboard-sql-editor:focus { border-color: #74a4fb; box-shadow: 0 0 0 3px rgba(40,104,245,.1); }
+        .dashboard-sql-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; }
+        .dashboard-sql-note { max-width: 700px; margin: 0; color: #8796aa; font-size: 8px; line-height: 1.55; }
+        .dashboard-sql-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+        .dashboard-sql-status { margin-top: 8px; color: #71839b; font-size: 9px; }
+        .dashboard-sql-status.error { color: #b3444a; }
+        .dashboard-sql-status.success { color: #16765a; }
+        .metric-card { position: relative; overflow: hidden; min-height: 116px; padding: 15px 16px; animation: rise-in .48s both; }
+        .metric-card:nth-child(2) { animation-delay: .04s; }.metric-card:nth-child(3) { animation-delay: .08s; }.metric-card:nth-child(4) { animation-delay: .12s; }.metric-card:nth-child(5) { animation-delay: .16s; }
+        .database-card { display: flex; align-items: flex-start; gap: 12px; }
+        .metric-icon { width: 36px; height: 36px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 10px; color: var(--blue); background: #edf3ff; }
+        .metric-icon svg { width: 18px; height: 18px; }
+        .metric-label { color: #7789a3; font-size: 10px; }
+        .database-name { margin: 4px 0 8px; color: #203754; font-size: 13px; font-weight: 700; }
+        .database-details { display: flex; gap: 13px; color: #8292a9; font-size: 9px; }
+        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 20px; color: #108d68; background: var(--green-soft); font-size: 9px; font-weight: 600; white-space: nowrap; }
+        .status-pill.attention { color: #9a6714; background: var(--amber-soft); }
+        .database-card .status-pill { margin-left: auto; }
+        .metric-top { display: flex; align-items: center; justify-content: space-between; }
+        .metric-card .metric-number { display: block; margin: 10px 0 3px; color: #142a49; font: 700 23px "Space Grotesk", sans-serif; letter-spacing: -.7px; }
+        .metric-foot { display: flex; align-items: center; gap: 5px; color: #8a9ab0; font-size: 9px; }
+        .metric-foot .trend { color: var(--green); font-weight: 700; }
+        .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.38fr) minmax(300px, .92fr); gap: 12px; margin-bottom: 13px; }
+        .section-panel { padding: 16px; animation: rise-in .52s .08s both; }
+        .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+        .panel-title-wrap { display: flex; align-items: center; gap: 10px; }
+        .panel-icon { width: 30px; height: 30px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 9px; color: #138c69; background: #eaf8f1; }
+        .panel-icon.blue { color: #245fce; background: #edf3ff; }
+        .panel-icon svg { width: 17px; height: 17px; }
+        .panel-title { margin: 0; color: #203651; font-size: 12px; font-weight: 700; }
+        .panel-description { margin: 3px 0 0; color: #8797ac; font-size: 9px; }
+        .health-content { display: grid; grid-template-columns: minmax(145px, 180px) minmax(0,1fr); align-items: center; gap: 17px; min-height: 180px; padding: 15px; border: 1px solid #edf1f7; border-radius: 8px; background: linear-gradient(110deg,#fff,#fcfdff); }
+        .health-ring { width: 130px; height: 130px; display: grid; place-items: center; margin: auto; border-radius: 50%; background: conic-gradient(var(--green) var(--score, 0%), #e8f1ee 0); transform: rotate(-90deg); transition: background 1s ease; }
+        .health-ring-inner { width: 104px; height: 104px; display: grid; align-content: center; justify-items: center; border: 1px solid #eff3f8; border-radius: 50%; background: #fff; transform: rotate(90deg); box-shadow: 0 5px 18px rgba(39,65,99,.06); }
+        .health-percent { color: #173250; font: 700 23px "Space Grotesk", sans-serif; }
+        .health-label { margin-top: 2px; color: #8493aa; font-size: 9px; }
+        .health-checklist { display: grid; gap: 13px; padding-left: 17px; border-left: 1px solid #edf1f7; }
+        .health-item { display: flex; align-items: center; gap: 9px; }
+        .health-item-icon { width: 24px; height: 24px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; color: var(--green); background: var(--green-soft); }
+        .health-item-icon.warning { color: var(--amber); background: var(--amber-soft); }
+        .health-item-icon.issue { color: var(--red); background: #ffebed; }
+        .health-item-icon svg { width: 13px; height: 13px; }
+        .health-item strong { display: block; color: #304661; font-size: 10px; }
+        .health-item small { display: block; margin-top: 3px; color: #8b9ab0; font-size: 9px; }
+        .panel-footer { display: flex; justify-content: flex-end; margin-top: 10px; }
+        .text-button { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; color: var(--blue); background: none; font-size: 10px; font-weight: 600; cursor: pointer; }
+        .text-button:hover { color: #174fc2; }
+        .text-button svg { width: 13px; }
+        .activity-list { display: grid; }
+        .activity-row { display: flex; align-items: center; gap: 10px; min-height: 46px; border-bottom: 1px solid #f0f3f8; }
+        .activity-row:last-child { border-bottom: 0; }
+        .activity-icon { width: 27px; height: 27px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; color: var(--blue); background: var(--blue-soft); }
+        .activity-icon.green { color: var(--green); background: var(--green-soft); }
+        .activity-icon.purple { color: #8856df; background: #f2edff; }
+        .activity-icon.amber { color: #df8914; background: #fff3e3; }
+        .activity-icon svg { width: 14px; height: 14px; }
+        .activity-copy { min-width: 0; flex: 1; }
+        .activity-copy strong { display: block; overflow: hidden; color: #314863; font-size: 9px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+        .activity-copy small { display: block; overflow: hidden; margin-top: 2px; color: #8a9ab0; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+        .activity-time { color: #94a2b7; font-size: 8px; white-space: nowrap; }
+        .lower-grid { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(250px,.75fr); gap: 12px; }
+        .quick-grid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 9px; }
+        .quick-card { display: flex; flex-direction: column; min-height: 129px; padding: 10px; border: 1px solid #eaf0f7; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; transition: transform .2s, border-color .2s, box-shadow .2s; }
+        .quick-card:hover { border-color: #c6d6f7; box-shadow: 0 7px 16px rgba(39,75,137,.08); transform: translateY(-3px); }
+        .quick-icon { width: 29px; height: 29px; display: grid; place-items: center; margin-bottom: 9px; border-radius: 8px; color: var(--blue); background: #edf3ff; }
+        .quick-icon.green { color: #129b70; background: #e8f8f0; }
+        .quick-icon.purple { color: #8753dc; background: #f2edff; }
+        .quick-icon.amber { color: #df8914; background: #fff3e3; }
+        .quick-icon.cyan { color: #0793b2; background: #e8f9fc; }
+        .quick-icon svg { width: 15px; height: 15px; }
+        .quick-card strong { color: #344b67; font-size: 9px; }
+        .quick-card small { margin-top: 4px; color: #8999af; font-size: 8px; line-height: 1.45; }
+        .quick-arrow { margin-top: auto; padding-top: 9px; color: #7290bb; font-size: 13px; }
+        .stats-list { display: grid; gap: 0; }
+        .stats-row { display: flex; align-items: center; justify-content: space-between; min-height: 24px; color: #8090a7; font-size: 9px; }
+        .stats-label { display: flex; align-items: center; gap: 7px; }
+        .stats-label svg { width: 13px; height: 13px; color: #7390b7; }
+        .stats-row strong { color: #314965; font-size: 9px; font-weight: 600; }
+        .view { display: none; animation: fade-in .28s both; }
+        .view.active { display: block; }
+        .explorer-layout { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 12px; align-items: stretch; }
+        .graph-panel { min-width: 0; overflow: hidden; }
+        .graph-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid #edf1f6; }
+        .graph-legend { display: flex; align-items: center; gap: 13px; color: #8191a8; font-size: 9px; }
+        .legend-dot { width: 7px; height: 7px; display: inline-block; margin-right: 5px; border-radius: 50%; background: #4b81f5; }
+        .legend-dot.relation { background: #aab8ce; }
+        #cy { height: min(66vh, 610px); min-height: 400px; background: radial-gradient(circle at 50% 45%,#fff 0,#fafcff 80%); }
+        .graph-controls { display: flex; gap: 5px; }
+        .graph-controls .icon-button { width: 29px; height: 29px; border-color: #edf1f6; }
+        .detail-panel { min-width: 0; padding: 15px; }
+        .detail-placeholder { display: grid; min-height: 330px; align-content: center; justify-items: center; color: #8b9ab0; text-align: center; }
+        .detail-placeholder .empty-icon { width: 48px; height: 48px; display: grid; place-items: center; margin-bottom: 11px; border: 1px solid #e9eef6; border-radius: 15px; color: #8ca8d7; background: #f5f8ff; }
+        .detail-placeholder svg { width: 23px; }
+        .detail-placeholder strong { margin-bottom: 4px; color: #4b5f7a; font-size: 11px; }
+        .detail-placeholder span { max-width: 180px; font-size: 9px; line-height: 1.6; }
+        .detail-title { display: flex; align-items: center; gap: 9px; margin-bottom: 15px; }
+        .detail-title h2 { overflow-wrap: anywhere; margin: 0; color: #253c59; font-size: 13px; }
+        .detail-title svg { width: 17px; color: #3977ef; }
+        .detail-label { margin: 14px 0 8px; color: #9aa8bb; font-size: 8px; font-weight: 700; letter-spacing: .9px; text-transform: uppercase; }
+        .column-list { display: grid; gap: 6px; }
+        .column-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 8px; border: 1px solid #eef2f7; border-radius: 7px; background: #fcfdff; }
+        .column-name { overflow-wrap: anywhere; color: #465d79; font-size: 9px; font-weight: 600; }
+        .column-type { color: #98a5b8; font-family: monospace; font-size: 8px; }
+        .column-tags { display: flex; gap: 4px; grid-column: 1 / -1; }
+        .tag { padding: 2px 5px; border-radius: 4px; color: #57739d; background: #edf3fb; font-size: 7px; }
+        .tag.pk { color: #94630f; background: #fff3d9; }
+        .tag.null { color: #78889e; background: #f0f3f7; }
+        .relation-list { display: grid; gap: 7px; }
+        .relation-row { padding: 8px; border-left: 2px solid #8aa9ec; border-radius: 0 6px 6px 0; color: #61748f; background: #f5f8ff; font-size: 8px; line-height: 1.5; overflow-wrap: anywhere; }
+        .table-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+        .filter-input, .form-input { width: 100%; min-height: 36px; padding: 0 11px; border: 1px solid #e4eaf2; border-radius: 7px; outline: none; color: var(--ink); background: #fff; font-size: 10px; }
+        .filter-input { max-width: 280px; }
+        .filter-input:focus, .form-input:focus { border-color: #93b4ff; box-shadow: 0 0 0 3px rgba(40,104,245,.08); }
+        .table-count { color: #8292a8; font-size: 10px; }
+        .schema-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap: 10px; }
+        .schema-card { overflow: hidden; border: 1px solid #e6ecf4; border-radius: 9px; background: #fff; box-shadow: 0 5px 16px rgba(26,54,94,.035); transition: border .2s, transform .2s, box-shadow .2s; animation: rise-in .35s both; }
+        .schema-card:hover { border-color: #c7d7f6; box-shadow: 0 8px 20px rgba(26,54,94,.075); transform: translateY(-2px); }
+        .schema-card-head { display: flex; align-items: center; gap: 9px; padding: 12px; border-bottom: 1px solid #edf1f6; }
+        .schema-card-head .table-glyph { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: var(--blue); background: var(--blue-soft); }
+        .schema-card-head svg { width: 15px; }
+        .schema-card-head strong { overflow: hidden; flex: 1; color: #354b66; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+        .schema-card-head small { color: #8d9cb1; font-size: 8px; white-space: nowrap; }
+        .schema-card-columns { display: grid; gap: 5px; padding: 10px 12px 12px; }
+        .schema-card-column { display: flex; justify-content: space-between; gap: 8px; color: #637790; font-size: 8px; }
+        .schema-card-column span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .schema-card-column span:last-child { color: #9aa7b8; font-family: monospace; white-space: nowrap; }
+        .schema-layout { display: grid; grid-template-columns: 205px minmax(0,1fr) 270px; gap: 11px; align-items: stretch; }
+        .tree-panel { min-width: 0; padding: 12px 10px; }
+        .tree-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 5px 11px; }
+        .tree-heading strong { color: #3c526e; font-size: 10px; }
+        .tree-heading span { color: #8a9ab0; font-size: 8px; }
+        .tree-search { width: 100%; height: 32px; margin-bottom: 9px; padding: 0 9px; border: 1px solid #e6ecf4; border-radius: 6px; outline: none; color: var(--ink); font-size: 9px; }
+        .tree-search:focus, .docs-search:focus { border-color: #93b4ff; box-shadow: 0 0 0 3px rgba(40,104,245,.08); }
+        .tree-scroll { max-height: 64vh; overflow: auto; }
+        .tree-db > summary { list-style: none; cursor: pointer; }
+        .tree-db > summary::-webkit-details-marker { display: none; }
+        .tree-root { display: flex; align-items: center; gap: 6px; padding: 8px 5px; color: #60738c; font-size: 9px; font-weight: 700; }
+        .tree-root svg { width: 14px; color: #3780ea; }
+        .tree-item { margin: 2px 0; }
+        .tree-item summary { display: flex; align-items: center; gap: 6px; overflow: hidden; padding: 7px 6px; border-radius: 6px; color: #526983; font-size: 9px; list-style: none; cursor: pointer; }
+        .tree-item summary::-webkit-details-marker { display: none; }
+        .tree-item summary::before { width: 10px; color: #8b9bb1; content: "›"; font-size: 13px; text-align: center; transition: transform .18s; }
+        .tree-item[open] summary::before { transform: rotate(90deg); }
+        .tree-item summary:hover { background: #f4f7fc; }
+        .tree-item.selected summary { color: #215cca; background: #edf3ff; font-weight: 700; }
+        .tree-item summary svg { width: 13px; flex: 0 0 auto; color: #5e8be1; }
+        .tree-item summary span { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+        .tree-item summary small { color: #98a6b9; font-size: 8px; }
+        .tree-columns { display: grid; gap: 1px; padding: 0 0 4px 21px; }
+        .tree-column { display: flex; align-items: center; gap: 5px; overflow: hidden; padding: 5px 5px; border-radius: 4px; color: #74869d; font-size: 8px; }
+        .tree-column:hover { background: #f7f9fc; }
+        .tree-column span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tree-column span:last-child { margin-left: auto; color: #a1adbd; font-family: monospace; white-space: nowrap; }
+        .tree-key { color: #d18b22; font-weight: 700; }
+        .explorer-main { min-width: 0; overflow: hidden; }
+        .explorer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 11px; border-bottom: 1px solid #edf1f6; }
+        .mode-toggle { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid #e9eef5; border-radius: 7px; background: #f7f9fc; }
+        .mode-toggle button { min-height: 26px; padding: 0 9px; border: 0; border-radius: 5px; color: #7d8da3; background: transparent; font-size: 8px; font-weight: 600; cursor: pointer; }
+        .mode-toggle button.active { color: #2d5eb1; background: white; box-shadow: 0 1px 4px rgba(30,58,97,.1); }
+        .tree-filter-count { color: #8b9bb1; font-size: 8px; }
+        .explorer-mode { display: none; }
+        .explorer-mode.active { display: block; }
+        .schema-table-scroll { max-height: min(66vh, 610px); min-height: 400px; overflow: auto; }
+        .schema-data-table { width: 100%; border-collapse: collapse; color: #576c86; font-size: 9px; text-align: left; }
+        .schema-data-table th { position: sticky; top: 0; z-index: 1; padding: 9px 10px; border-bottom: 1px solid #e9eef5; color: #8494aa; background: #f9fbfe; font-size: 8px; font-weight: 700; letter-spacing: .35px; white-space: nowrap; }
+        .schema-data-table td { max-width: 180px; padding: 8px 10px; border-bottom: 1px solid #f0f3f8; overflow-wrap: anywhere; }
+        .schema-data-table tbody tr { cursor: pointer; transition: background .15s; }
+        .schema-data-table tbody tr:hover, .schema-data-table tbody tr.selected { background: #f3f7ff; }
+        .schema-data-table code { color: #496587; font-size: 8px; }
+        .index-list { display: grid; gap: 6px; }
+        .index-row { padding: 7px 8px; border: 1px solid #edf1f6; border-radius: 6px; color: #5d718a; background: #fbfcfe; font-size: 8px; line-height: 1.45; overflow-wrap: anywhere; }
+        .index-row strong { color: #3b5575; }
+        .profile-summary { margin-bottom: 6px; color: #61758f; font-size: 9px; font-weight: 600; }
+        .profile-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid #f0f3f7; color: #71839a; font-size: 8px; }
+        .profile-row:last-child { border-bottom: 0; }
+        .profile-error { color: #b34850; font-size: 8px; }
+        .analysis-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 11px; margin-bottom: 12px; }
+        .severity-summary { display: grid; grid-template-columns: repeat(4,minmax(90px,1fr)); gap: 8px; margin-bottom: 13px; }
+        .severity-card { padding: 10px 12px; border: 1px solid #e8edf5; border-radius: 8px; background: white; }
+        .severity-card strong { display: block; color: #263e5e; font: 700 18px "Space Grotesk",sans-serif; }
+        .severity-card span { color: #8292a8; font-size: 8px; }
+        .severity-card.high { border-left: 3px solid #e44e58; }.severity-card.medium { border-left: 3px solid #e89a22; }.severity-card.low { border-left: 3px solid #3676e8; }
+        .severity-filters { display: flex; flex-wrap: wrap; gap: 5px; }
+        .severity-filter { min-height: 27px; padding: 0 9px; border: 1px solid #e5ebf3; border-radius: 16px; color: #73849b; background: white; font-size: 8px; cursor: pointer; }
+        .severity-filter.active { border-color: #a9c3f4; color: #2d5fbd; background: #eef4ff; }
+        .group-control { display: flex; align-items: center; gap: 6px; color: #8494aa; font-size: 8px; }
+        .group-control select { height: 29px; padding: 0 8px; border: 1px solid #e5ebf3; border-radius: 6px; color: #576b84; background: white; font-size: 8px; }
+        .finding-group { grid-column: 1 / -1; overflow: hidden; }
+        .finding-group-heading { display: flex; align-items: center; justify-content: space-between; padding: 11px 13px; border-bottom: 1px solid #edf1f6; color: #435a76; font-size: 10px; font-weight: 700; }
+        .finding-group-heading small { color: #91a0b4; font-size: 8px; font-weight: 500; }
+        .finding-card { margin: 9px 11px; padding: 11px; border: 1px solid #edf1f6; border-left: 3px solid #97a7bc; border-radius: 7px; background: #fcfdff; }
+        .finding-card.severity-high { border-left-color: #e44e58; }.finding-card.severity-medium { border-left-color: #e89a22; }.finding-card.severity-low { border-left-color: #3676e8; }
+        .finding-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 7px; }
+        .finding-title { flex: 1; color: #354c68; font-size: 9px; font-weight: 700; }
+        .severity-badge { padding: 3px 6px; border-radius: 9px; font-size: 7px; font-weight: 700; text-transform: uppercase; }
+        .severity-badge.high { color: #b83d47; background: #ffebed; }.severity-badge.medium { color: #a16d15; background: #fff2dc; }.severity-badge.low { color: #3166c0; background: #edf3ff; }
+        .finding-copy { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+        .finding-copy div { color: #8292a7; font-size: 8px; line-height: 1.5; }
+        .finding-copy strong { display: block; margin-bottom: 3px; color: #586d87; font-size: 8px; }
+        .finding-actions { display: flex; justify-content: flex-end; margin-top: 9px; }
+        .migration-sources { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; margin: 13px 0; }
+        .migration-source { padding: 12px; border: 1px solid #e9eef5; border-radius: 8px; background: #fcfdff; }
+        .migration-source strong { display: block; margin-bottom: 8px; color: #415875; font-size: 9px; }
+        .migration-source label { display: block; margin: 7px 0 4px; color: #8494aa; font-size: 8px; }
+        .migration-source select { width: 100%; height: 32px; padding: 0 8px; border: 1px solid #e4eaf2; border-radius: 6px; color: #526780; background: white; font-size: 9px; }
+        .migration-actions { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0; }
+        .migration-status { margin: 9px 0; padding: 9px 11px; border: 1px solid #dce9fb; border-radius: 7px; color: #496786; background: #f3f8ff; font-size: 9px; }
+        .migration-status.warning { border-color: #f0d4a7; color: #8c611e; background: #fff8e9; }
+        .diff-list { display: grid; gap: 8px; margin-top: 11px; }
+        .diff-item { padding: 10px; border: 1px solid #edf1f6; border-radius: 7px; font-size: 9px; line-height: 1.5; }
+        .diff-item.added { border-left: 3px solid #16a575; background: #f2fbf7; }.diff-item.removed { border-left: 3px solid #e44e58; background: #fff7f7; }.diff-item.modified { border-left: 3px solid #e89a22; background: #fffaf0; }
+        .migration-code { overflow: auto; max-height: 380px; margin: 8px 0 0; padding: 13px; border: 1px solid #1f3451; border-radius: 8px; color: #dbe8fa; background: #132139; font: 9px/1.7 Consolas,Monaco,monospace; white-space: pre; }
+        .sql-keyword { color: #83b5ff; }.sql-string { color: #a5ddb8; }.sql-comment { color: #91a3bd; }
+        .docs-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px; margin-bottom: 12px; }
+        .docs-search { width: min(280px,100%); height: 33px; padding: 0 10px; border: 1px solid #e4eaf2; border-radius: 7px; outline: none; font-size: 9px; }
+        .docs-generated { color: #8b9ab0; font-size: 8px; }
+        .docs-layout { display: grid; grid-template-columns: 205px minmax(0,1fr); gap: 12px; align-items: start; }
+        .docs-toc { position: sticky; top: 76px; max-height: 70vh; overflow: auto; padding: 12px; }
+        .docs-toc h2 { margin: 0 0 9px; color: #465c78; font-size: 9px; }
+        .docs-toc a { display: block; padding: 6px 7px; border-radius: 5px; color: #71839b; font-size: 8px; text-decoration: none; overflow-wrap: anywhere; }
+        .docs-toc a:hover { color: #2868f5; background: #f1f5ff; }
+        .docs-content { min-width: 0; padding: 16px; }
+        .docs-table-section { padding: 0 0 17px; margin: 0 0 17px; border-bottom: 1px solid #edf1f6; scroll-margin-top: 80px; }
+        .docs-table-section:last-child { margin-bottom: 0; border-bottom: 0; }
+        .docs-table-section h2 { margin: 0 0 10px; color: #243d5c; font: 700 15px "Space Grotesk",sans-serif; }
+        .docs-table-section h3 { margin: 12px 0 6px; color: #657993; font-size: 9px; }
+        .docs-table-section table { width: 100%; border-collapse: collapse; font-size: 8px; text-align: left; }
+        .docs-table-section th, .docs-table-section td { padding: 7px; border-bottom: 1px solid #edf1f6; overflow-wrap: anywhere; }
+        .docs-table-section th { color: #8292a8; background: #f8faff; }
+        .docs-empty { padding: 24px; color: #8b9ab0; font-size: 9px; text-align: center; }
+        #view-docs > .prose-panel { display: none; }
+        .diagram-workspace { display: grid; grid-template-columns: minmax(300px,.82fr) minmax(0,1.4fr); gap: 13px; align-items: start; }
+        .sql-input-panel, .diagram-preview-panel { min-width: 0; padding: 16px; }
+        .sql-controls { display: flex; align-items: end; gap: 8px; margin: 13px 0 9px; }
+        .sql-controls label { display: grid; flex: 1; gap: 5px; color: #7c8da4; font-size: 9px; font-weight: 600; }
+        .sql-controls select { height: 35px; padding: 0 9px; border: 1px solid #e4eaf2; border-radius: 7px; color: #435a75; background: white; font-size: 10px; }
+        .sql-editor { width: 100%; min-height: 350px; resize: vertical; padding: 12px; border: 1px solid #e0e8f2; border-radius: 8px; outline: none; color: #dce9fb; background: #132139; font: 10px/1.65 Consolas,Monaco,monospace; tab-size: 2; }
+        .sql-editor:focus { border-color: #74a4fb; box-shadow: 0 0 0 3px rgba(40,104,245,.1); }
+        .sql-help { margin: 8px 0 0; color: #8b9ab0; font-size: 8px; line-height: 1.55; }
+        .diagram-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+        .diagram-warning { margin: 10px 0; padding: 9px 11px; border: 1px solid #f1dfb9; border-radius: 7px; color: #8a671f; background: #fff9eb; font-size: 9px; line-height: 1.55; }
+        .diagram-counts { display: flex; flex-wrap: wrap; gap: 7px; margin: 11px 0; }
+        .diagram-counts .tag { padding: 5px 8px; font-size: 8px; }
+        .diagram-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 9px 0; scrollbar-width: thin; }
+        .diagram-tab { flex: 0 0 auto; min-height: 29px; padding: 0 9px; border: 1px solid #e6ecf4; border-radius: 7px; color: #75869d; background: white; font-size: 8px; font-weight: 600; cursor: pointer; }
+        .diagram-tab.active { border-color: #adc6f5; color: #2f62c1; background: #eef4ff; }
+        .diagram-stage { min-height: 360px; overflow: auto; padding: 11px; border: 1px solid #eaf0f7; border-radius: 8px; background: radial-gradient(circle at 50% 35%,#fff 0,#f9fbff 90%); }
+        .diagram-stage svg { display: block; width: 100%; min-width: 520px; height: auto; min-height: 330px; }
+        .diagram-description { margin-top: 11px; padding: 12px; border: 1px solid #edf1f6; border-radius: 7px; background: #fcfdff; }
+        .diagram-description h3 { margin: 0 0 6px; color: #3b526f; font-size: 10px; }
+        .diagram-description p { margin: 0; color: #7789a1; font-size: 9px; line-height: 1.6; }
+        .diagram-description ul { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 17px; color: #7789a1; font-size: 8px; line-height: 1.5; }
+        .diagram-report-progress { margin-top: 9px; color: #7c8da4; font-size: 9px; }
+        .empty-state, .error-state { padding: 36px 18px; border: 1px dashed #dce5f1; border-radius: 9px; color: #8b9ab0; background: rgba(255,255,255,.6); font-size: 11px; text-align: center; }
+        .analysis-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+        .analysis-card { padding: 15px; }
+        .analysis-card .analysis-number { margin: 14px 0 5px; color: #1b3556; font: 700 27px "Space Grotesk",sans-serif; }
+        .analysis-card .analysis-copy { color: #8797ad; font-size: 9px; line-height: 1.5; }
+        .issue-list { display: grid; gap: 7px; margin-top: 13px; }
+        .issue-row { padding: 8px 9px; border: 1px solid #edf1f6; border-radius: 6px; color: #63758d; background: #fcfdff; font-size: 9px; overflow-wrap: anywhere; }
+        .issue-row code { color: #385b8b; font-size: 9px; }
+        .prose-panel { padding: 18px; }
+        .prose-panel pre { overflow: auto; max-height: 60vh; margin: 14px 0 0; padding: 16px; border: 1px solid #edf1f6; border-radius: 8px; color: #405876; background: #f9fbfe; font: 10px/1.7 "DM Sans",sans-serif; white-space: pre-wrap; }
+        .migration-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 9px; margin: 14px 0; }
+        .migration-results { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+        .migration-result { min-height: 110px; padding: 13px; border: 1px solid #eaf0f7; border-radius: 8px; background: #fcfdff; }
+        .migration-result strong { color: #415875; font-size: 10px; }
+        .migration-result p { color: #8b9ab0; font-size: 9px; }
+        .settings-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+        .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #eff2f7; }
+        .setting-row:last-child { border-bottom: 0; }
+        .setting-row strong { display: block; color: #415773; font-size: 10px; }
+        .setting-row small { display: block; margin-top: 3px; color: #8b9ab0; font-size: 9px; }
+        .toast-region { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: grid; gap: 8px; }
+        .toast { max-width: min(360px,calc(100vw - 36px)); padding: 11px 14px; border: 1px solid #d9e6f4; border-radius: 9px; color: #344c68; background: white; box-shadow: 0 12px 28px rgba(22,43,75,.15); font-size: 10px; animation: toast-in .22s both; }
+        .toast.error { border-color: #f2cdcf; color: #9e3840; }
+        .loading { display: inline-flex; align-items: center; gap: 8px; color: #8494aa; font-size: 10px; }
+        .spinner { width: 13px; height: 13px; border: 2px solid #dce6f4; border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+        @keyframes rise-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fade-in { from { opacity: .25; } to { opacity: 1; } }
+        @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (min-width: 1500px) { .content { padding-top: 29px; } }
+        @media (max-width: 1150px) {
+            .app-shell { grid-template-columns: 216px minmax(0,1fr); }.sidebar { width: 216px; }
+            .content { padding-right: 19px; padding-left: 19px; }
+            .metrics-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+            .database-card { grid-column: span 2; }
+            .quick-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+            .schema-layout { grid-template-columns: 180px minmax(0,1fr) 230px; }
+            .diagram-workspace { grid-template-columns: minmax(260px,.8fr) minmax(0,1.2fr); }
+        }
+        @media (max-width: 850px) {
+            .app-shell { grid-template-columns: 68px minmax(0,1fr); }.sidebar { width: 68px; align-items: center; padding-right: 8px; padding-left: 8px; }
+            .brand { padding: 1px 0 22px; }.brand-copy, .nav-label, .nav-item span, .sidebar-card { display: none; }
+            .nav-item { justify-content: center; width: 46px; height: 42px; padding: 0; }.nav-item svg { width: 18px; height: 18px; }
+            .nav-list { width: 100%; justify-items: center; }.main-column { grid-column: 2; }
+            .dashboard-grid { grid-template-columns: 1fr; }.lower-grid { grid-template-columns: 1fr; }
+            .explorer-layout { grid-template-columns: 1fr; }.detail-panel { min-height: 220px; }
+            .schema-layout { grid-template-columns: 175px minmax(0,1fr); }
+            .schema-layout .detail-panel { grid-column: 2; }
+            .detail-placeholder { min-height: 180px; }.topbar { padding-right: 16px; padding-left: 16px; }
+            .diagram-workspace { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 600px) {
+            .app-shell { display: block; padding-bottom: 58px; }.sidebar { position: fixed; inset: auto 0 0; z-index: 25; width: 100%; height: 58px; flex-direction: row; justify-content: center; padding: 5px 8px; border-top: 1px solid rgba(145,171,210,.15); }
+            .brand, .sidebar-spacer, .sidebar-card { display: none; }.nav-list { display: flex; justify-content: space-around; gap: 2px; }
+            .nav-item { width: 43px; height: 43px; }.nav-item.active { box-shadow: inset 0 -2px #58a4ff; }
+            .main-column { min-height: 100vh; }.topbar { height: 56px; gap: 8px; padding: 0 12px; }
+            .mobile-brand { display: block; color: #203753; font: 700 12px "Space Grotesk",sans-serif; white-space: nowrap; }
+            .search-wrap { max-width: none; }.search-input { padding-right: 12px; }.search-shortcut { display: none; }
+            .connection-chip, .profile-copy, .profile .icon-button { display: none; }.profile { padding-left: 6px; }
+            .content { padding: 19px 12px 22px; }.page-heading { align-items: flex-start; flex-direction: column; margin-bottom: 14px; }
+            h1 { font-size: 21px; }.heading-actions { width: 100%; }.heading-actions .button { flex: 1; }
+            .metrics-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }.database-card { grid-column: span 2; min-height: 100px; }
+            .dashboard-sql-panel { padding: 12px; }
+            .dashboard-sql-top, .dashboard-sql-footer { align-items: stretch; flex-direction: column; }
+            .dashboard-sql-actions .button { flex: 1; }
+            .dashboard-sql-editor { min-height: 220px; }
+            .metric-card { min-height: 105px; padding: 12px; }.metric-card .metric-number { font-size: 21px; }
+            .health-content { grid-template-columns: 1fr; gap: 15px; }.health-ring { width: 118px; height: 118px; }.health-ring-inner { width: 94px; height: 94px; }
+            .health-checklist { padding: 12px 0 0; border-top: 1px solid #edf1f7; border-left: 0; }
+            .quick-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.section-panel { padding: 13px; }
+            .analysis-grid { grid-template-columns: 1fr; }.migration-form, .migration-results, .settings-grid { grid-template-columns: 1fr; }
+            .graph-toolbar { align-items: flex-start; flex-direction: column; }.graph-toolbar .graph-controls { position: absolute; right: 20px; }
+            #cy { min-height: 320px; height: 48vh; }.schema-list { grid-template-columns: 1fr; }
+            .schema-layout { grid-template-columns: 1fr; }
+            .schema-layout .detail-panel { grid-column: auto; }
+            .tree-scroll { max-height: 210px; }
+            .schema-table-scroll { min-height: 320px; }
+            .schema-data-table { min-width: 560px; }
+            .severity-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+            .finding-copy { grid-template-columns: 1fr; }
+            .migration-sources { grid-template-columns: 1fr; }
+            .docs-layout { grid-template-columns: 1fr; }
+            .docs-toc { position: static; max-height: 180px; }
+            .docs-toolbar { align-items: flex-start; }
+            .sql-input-panel, .diagram-preview-panel { padding: 12px; }
+            .sql-editor { min-height: 240px; }
+            .diagram-stage { min-height: 300px; padding: 7px; }
+            .diagram-stage svg { min-width: 460px; min-height: 280px; }
+            .sql-controls { align-items: stretch; flex-direction: column; }
+            .diagram-counts { gap: 5px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar" aria-label="Main navigation">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v13c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+                </div>
+                <div class="brand-copy"><div class="brand-name">SchemaSphere</div><div class="brand-caption">Database Intelligence</div></div>
+            </div>
+            <div class="nav-label">Workspace</div>
+            <nav class="nav-list">
+                <button class="nav-item active" data-view="overview" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z"/></svg><span>Overview</span></button>
+                <button class="nav-item" data-view="connections"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 7h8M7 12h10M9 17h6"/><circle cx="6" cy="7" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="7" cy="17" r="2"/></svg><span>Connections</span></button>
+                <button class="nav-item" data-view="schema"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM4 9h16M9 9v10M14 9v10"/></svg><span>Schema Explorer</span></button>
+                <button class="nav-item" data-view="analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5m0 14h17M8 15l3-4 3 2 5-7"/><path d="M16 6h3v3"/></svg><span>Analysis</span></button>
+                <button class="nav-item" data-view="migrations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h12l-3-3M17 17H5l3 3"/><path d="M19 7a7 7 0 0 1 1 10M5 17a7 7 0 0 1-1-10"/></svg><span>Compare &amp; Migrations</span></button>
+                <button class="nav-item" data-view="docs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v5h5M8 12h8M8 16h8"/></svg><span>Documentation</span></button>
+                <button class="nav-item" data-view="diagrams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="6" rx="1"/><rect x="14" y="3" width="7" height="6" rx="1"/><rect x="8.5" y="15" width="7" height="6" rx="1"/><path d="M10 6h4M6.5 9 10 15m7.5-6L14 15"/></svg><span>SQL diagrams</span></button>
+            </nav>
+            <div class="nav-label">System</div>
+            <nav class="nav-list">
+                <button class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 2Z"/></svg><span>Settings</span></button>
+            </nav>
+            <div class="sidebar-spacer"></div>
+            <div class="sidebar-card">
+                <div class="sidebar-card-title"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2Zm7 13 .8 3.2L23 19l-3.2.8L19 23l-.8-3.2L15 19l3.2-.8L19 15Z"/></svg>Better schemas. Better decisions.</div>
+                <p>Your database, understood at a glance.</p>
+                <div class="sidebar-version">SCHEMASPHERE / 1.0</div>
+            </div>
+        </aside>
+        <div class="main-column">
+            <header class="topbar">
+                <div class="mobile-brand">SchemaSphere</div>
+                <label class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
+                    <input id="globalSearch" class="search-input" type="search" placeholder="Search tables, columns, or anything..." aria-label="Search schema" />
+                    <span class="search-shortcut">Ctrl K</span>
+                </label>
+                <div class="topbar-spacer"></div>
+                <div class="connection-chip"><span class="connection-dot"></span><span><strong id="activeSourceLabel">Local SQLite</strong><small id="connectionStatus">Connecting…</small></span></div>
+                <button class="icon-button" id="topRefresh" aria-label="Refresh schema" title="Refresh schema"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.8-2L20 12M4 12l2.6 5a7 7 0 0 0 11.8-2"/></svg></button>
+                <div class="profile"><div class="avatar">DB</div><div class="profile-copy"><strong>Workspace</strong><small>Local database</small></div></div>
+            </header>
+            <main class="content">
+                <section class="view active" id="view-overview" aria-labelledby="pageTitle">
+                    <div class="page-heading">
+                        <div><div class="eyebrow"><span class="eyebrow-dot"></span>Workspace snapshot</div><h1 id="pageTitle">Overview</h1><p class="page-subtitle">A clear view of your database structure and its health.</p></div>
+                        <div class="heading-actions">
+                            <button class="button" id="downloadMD"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg>Export docs</button>
+                            <button class="button primary" id="refreshBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.8-2L20 12M4 12l2.6 5a7 7 0 0 0 11.8-2"/></svg>Refresh schema</button>
+                        </div>
+                    </div>
+                    <section class="panel dashboard-sql-panel" aria-labelledby="dashboardSqlTitle">
+                        <div class="dashboard-sql-top">
+                            <div><h2 id="dashboardSqlTitle">Analyze a SQLite script across your workspace</h2><p>Paste or load a script. After you stop typing, its schema and data are analyzed and shared with Schema Explorer, Analysis, Compare, Documentation, table profiling, and diagrams.</p></div>
+                            <span class="status-pill" id="dashboardSqlSource">Using sample database</span>
+                        </div>
+                        <textarea id="dashboardSqlInput" class="dashboard-sql-editor" spellcheck="false" aria-label="Paste SQLite SQL" placeholder="CREATE TABLE customers (&#10;    id INTEGER PRIMARY KEY,&#10;    name TEXT NOT NULL&#10;);&#10;INSERT INTO customers (id, name) VALUES (1, 'Avery');"></textarea>
+                        <div class="dashboard-sql-footer">
+                            <p class="dashboard-sql-note">Runs only in a temporary in-memory database, never against your configured database. Supports table/index schema changes and row-data statements. External database access, triggers, views, and file access are blocked. Invalid scripts leave the current workspace unchanged.</p>
+                            <div class="dashboard-sql-actions"><button class="button" id="loadDashboardSqlSample" type="button">Load example</button><button class="button" id="resetDashboardSql" type="button">Use default database</button><button class="button primary" id="analyzeDashboardSql" type="button">Analyze across workspace</button></div>
+                        </div>
+                        <div class="dashboard-sql-status" id="dashboardSqlStatus" aria-live="polite">Paste a script to analyze it automatically.</div>
+                    </section>
+                    <div class="metrics-grid">
+                        <article class="panel metric-card database-card">
+                            <div class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v13c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></div>
+                            <div><div class="metric-label">Database source</div><div class="database-name" id="databaseSourceName">Local SQLite</div><div class="database-details"><span>Workspace schema</span><span id="lastUpdated">Waiting for data</span></div></div>
+                            <span class="status-pill" id="dbStatus">● Loading</span>
+                        </article>
+                        <article class="panel metric-card"><div class="metric-top"><span class="metric-label">Tables</span><span class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM4 9h16M9 9v10M14 9v10"/></svg></span></div><strong class="metric-number" id="tableCount">—</strong><div class="metric-foot">In your schema</div></article>
+                        <article class="panel metric-card"><div class="metric-top"><span class="metric-label">Relationships</span><span class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.2 1.2"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20l1.2-1.2"/></svg></span></div><strong class="metric-number" id="relationshipCount">—</strong><div class="metric-foot">Foreign key links</div></article>
+                        <article class="panel metric-card"><div class="metric-top"><span class="metric-label">Columns</span><span class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h3"/></svg></span></div><strong class="metric-number" id="columnCount">—</strong><div class="metric-foot">Across all tables</div></article>
+                        <article class="panel metric-card"><div class="metric-top"><span class="metric-label">Primary keys</span><span class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8m-3 3 3 3m-6 0 2 2"/></svg></span></div><strong class="metric-number" id="primaryKeyCount">—</strong><div class="metric-foot">Defined in schema</div></article>
+                    </div>
+                    <div class="dashboard-grid">
+                        <section class="panel section-panel">
+                            <div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg></span><div><h2 class="panel-title">Database health</h2><p class="panel-description">Structure quality and opportunities to improve.</p></div></div><span class="status-pill" id="healthStatus">Analyzing</span></div>
+                            <div class="health-content">
+                                <div class="health-ring" id="healthRing" style="--score:0%"><div class="health-ring-inner"><strong class="health-percent" id="healthScore">—</strong><span class="health-label">Health score</span></div></div>
+                                <div class="health-checklist" id="healthChecklist"><div class="loading"><span class="spinner"></span>Analyzing your schema</div></div>
+                            </div>
+                            <div class="panel-footer"><button class="text-button" data-navigate="analysis">View detailed analysis <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button></div>
+                        </section>
+                        <section class="panel section-panel">
+                            <div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><h2 class="panel-title">Recent activity</h2><p class="panel-description">What’s happening in your workspace.</p></div></div><span class="status-pill" id="activityStatus">Live</span></div>
+                            <div class="activity-list" id="activityList"><div class="activity-row"><span class="activity-icon"><span class="spinner"></span></span><div class="activity-copy"><strong>Loading workspace</strong><small>Checking your database schema</small></div></div></div>
+                        </section>
+                    </div>
+                    <div class="lower-grid">
+                        <section class="panel section-panel">
+                            <div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m13 2-3 8h7l-6 12 2-9H6l7-11Z"/></svg></span><div><h2 class="panel-title">Quick actions</h2><p class="panel-description">Jump into your most-used tools.</p></div></div></div>
+                            <div class="quick-grid">
+                                <button class="quick-card" data-navigate="schema"><span class="quick-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM4 9h16M9 9v10M14 9v10"/></svg></span><strong>Explore schema</strong><small>Browse tables, columns and links.</small><span class="quick-arrow">→</span></button>
+                                <button class="quick-card" data-navigate="analysis"><span class="quick-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 8 4v5c0 5-3.4 8-8 9-4.6-1-8-4-8-9V7l8-4Z"/><path d="m9 12 2 2 4-4"/></svg></span><strong>Run analysis</strong><small>See schema findings and quality.</small><span class="quick-arrow">→</span></button>
+                                <button class="quick-card" data-navigate="migrations"><span class="quick-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h12l-3-3M17 17H5l3 3"/><path d="M19 7a7 7 0 0 1 1 10M5 17a7 7 0 0 1-1-10"/></svg></span><strong>Compare schemas</strong><small>Review changes between databases.</small><span class="quick-arrow">→</span></button>
+                                <button class="quick-card" data-navigate="migrations"><span class="quick-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M5 7h14M7 7l-4 7h8L7 7Zm10 0-4 7h8l-4-7ZM5 21h14"/></svg></span><strong>Preview migration</strong><small>Inspect a baseline and target diff.</small><span class="quick-arrow">→</span></button>
+                                <button class="quick-card" data-action="docs"><span class="quick-icon cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v5h5M8 12h8M8 16h8"/></svg></span><strong>Generate docs</strong><small>Download a data dictionary.</small><span class="quick-arrow">→</span></button>
+                            </div>
+                        </section>
+                        <section class="panel section-panel">
+                            <div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5m0 14h17"/><path d="M8 15V9m4 6V5m4 10v-4m4 4V7"/></svg></span><div><h2 class="panel-title">Schema statistics</h2><p class="panel-description">Key metrics from your database.</p></div></div></div>
+                            <div class="stats-list">
+                                <div class="stats-row"><span class="stats-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM4 9h16"/></svg>Total tables</span><strong id="statTables">—</strong></div>
+                                <div class="stats-row"><span class="stats-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h3"/></svg>Total columns</span><strong id="statColumns">—</strong></div>
+                                <div class="stats-row"><span class="stats-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8"/></svg>Primary keys</span><strong id="statKeys">—</strong></div>
+                                <div class="stats-row"><span class="stats-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20"/></svg>Relationships</span><strong id="statRelationships">—</strong></div>
+                                <div class="stats-row"><span class="stats-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/></svg>Missing primary keys</span><strong id="statWarnings">—</strong></div>
+                            </div>
+                        </section>
+                    </div>
+                </section>
+                <section class="view" id="view-schema">
+                    <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-dot"></span>Discover your data</div><h1>Schema Explorer</h1><p class="page-subtitle">Search tables and columns, inspect indexes, and trace relationships.</p></div><div class="heading-actions"><button class="button" id="exportSVG"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg>Export SVG</button><button class="button" id="exportPNG"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m21 15-5-5L5 20"/></svg>Export PNG</button><button class="button primary" data-action="refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.8-2L20 12M4 12l2.6 5a7 7 0 0 0 11.8-2"/></svg>Refresh</button></div></div>
+                    <div class="schema-layout">
+                        <aside class="panel tree-panel">
+                            <div class="tree-heading"><strong>Database tree</strong><span id="treeTableCount">—</span></div>
+                            <input class="tree-search" id="schemaSearch" type="search" placeholder="Search tables or columns…" aria-label="Search database tree" />
+                            <div class="tree-scroll"><details class="tree-db" open><summary class="tree-root"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v13c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></svg><span>Current database</span></summary><div id="schemaTree"><div class="empty-state">Loading tables…</div></div></details></div>
+                        </aside>
+                        <section class="panel explorer-main">
+                            <div class="explorer-toolbar"><div><strong class="panel-title" id="explorerModeTitle">Table view</strong><span class="tree-filter-count" id="explorerResultCount"></span></div><div class="mode-toggle" role="group" aria-label="Schema display mode"><button type="button" class="active" data-explorer-mode="table" aria-pressed="true">Table view</button><button type="button" data-explorer-mode="diagram" aria-pressed="false">ER diagram</button></div></div>
+                            <div class="explorer-mode active" id="tableMode"><div class="schema-table-scroll"><table class="schema-data-table"><thead><tr><th>TABLE</th><th>COLUMN</th><th>DATA TYPE</th><th>KEYS</th><th>INDEXES</th></tr></thead><tbody id="schemaRows"><tr><td colspan="5">Loading schema…</td></tr></tbody></table></div></div>
+                            <div class="explorer-mode" id="diagramMode">
+                                <div class="graph-toolbar"><div class="graph-legend"><span><i class="legend-dot"></i>Table</span><span><i class="legend-dot relation"></i>Foreign key</span></div><div class="graph-controls"><button class="icon-button" id="zoomIn" aria-label="Zoom in" title="Zoom in">+</button><button class="icon-button" id="zoomOut" aria-label="Zoom out" title="Zoom out">−</button><button class="icon-button" id="fitGraph" aria-label="Fit graph" title="Fit graph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg></button></div></div>
+                                <div id="cy" aria-label="Interactive database relationship diagram"></div>
+                            </div>
+                        </section>
+                        <aside class="panel detail-panel" id="tableDetails"><div class="detail-placeholder"><span class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16v14H4zM4 9h16M9 9v10M14 9v10"/></svg></span><strong>Explore a table</strong><span>Select a table from the tree, table view, or diagram to inspect columns, indexes, and relationships.</span></div></aside>
+                    </div>
+                </section>
+                <section class="view" id="view-diagrams">
+                    <div class="page-heading">
+                        <div><div class="eyebrow"><span class="eyebrow-dot"></span>Model your system</div><h1>SQL to diagrams</h1><p class="page-subtitle">Paste a database schema to generate diagrams and a detailed PDF report.</p></div>
+                        <div class="heading-actions"><button class="button primary" id="downloadDiagramPdf" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/><path d="M5 3h14"/></svg>Download analysis PDF</button></div>
+                    </div>
+                    <div class="diagram-warning"><strong>Inference note:</strong> SQL describes stored data and relationships, not actual user roles or workflows. Use case, object, state, activity, and DFD diagrams are structural interpretations; sample objects and process flows are illustrative, not discovered application behavior. Use the Overview SQL panel to also analyze SQL data across the other workspace sections.</div>
+                    <div class="diagram-workspace">
+                        <section class="panel sql-input-panel">
+                            <div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 8-5 4 5 4m8-8 5 4-5 4m-3-9-2 10"/></svg></span><div><h2 class="panel-title">Schema source</h2><p class="panel-description">Analysis runs automatically as you paste or edit.</p></div></div></div>
+                            <div class="sql-controls"><label for="diagramDialect">SQL dialect<select id="diagramDialect"><option value="sqlite">SQLite</option><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option></select></label><span class="status-pill" id="diagramParseStatus">Waiting for SQL</span></div>
+                            <textarea id="diagramSqlInput" class="sql-editor" spellcheck="false" placeholder="CREATE TABLE customers (&#10;    id INTEGER PRIMARY KEY,&#10;    email TEXT NOT NULL UNIQUE&#10;);&#10;&#10;CREATE TABLE orders (&#10;    id INTEGER PRIMARY KEY,&#10;    customer_id INTEGER NOT NULL REFERENCES customers(id),&#10;    total DECIMAL(10, 2) NOT NULL&#10;);&#10;&#10;CREATE INDEX idx_orders_customer ON orders(customer_id);"></textarea>
+                            <p class="sql-help">This editor parses CREATE TABLE and CREATE INDEX statements locally for diagrams. To share schema and row data with every workspace section, paste the SQLite script into the Overview SQL panel; it runs only in a temporary isolated database.</p>
+                            <div class="diagram-actions"><button class="button primary" id="generateDiagrams" type="button">Generate diagrams</button><button class="button" id="loadDiagramSample" type="button">Load sample SQL</button><button class="button" id="clearDiagramSql" type="button">Clear</button></div>
+                            <div class="diagram-report-progress" id="diagramProgress" aria-live="polite"></div>
+                        </section>
+                        <section class="panel diagram-preview-panel">
+                            <div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="6" rx="1"/><rect x="14" y="3" width="7" height="6" rx="1"/><rect x="8.5" y="15" width="7" height="6" rx="1"/><path d="M10 6h4M6.5 9 10 15m7.5-6L14 15"/></svg></span><div><h2 class="panel-title">Diagram studio</h2><p class="panel-description">Nine views generated from the pasted schema.</p></div></div><span class="status-pill" id="diagramTableCount">0 tables</span></div>
+                            <div class="diagram-counts" id="diagramCounts"></div>
+                            <div class="diagram-tabs" id="diagramTabs" role="tablist" aria-label="Choose a generated diagram"></div>
+                            <div class="diagram-stage" id="diagramStage"><div class="empty-state">Paste CREATE TABLE statements to generate diagrams.</div></div>
+                            <div class="diagram-description" id="diagramDescription"><h3>What this diagram shows</h3><p>Generated diagrams and their analysis will appear here.</p></div>
+                        </section>
+                    </div>
+                </section>
+                <section class="view" id="view-analysis">
+                    <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-dot"></span>Quality intelligence</div><h1>Schema analysis</h1><p class="page-subtitle">A focused review of consistency and structural health.</p></div><div class="heading-actions"><button class="button primary" data-action="refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.8-2L20 12M4 12l2.6 5a7 7 0 0 0 11.8-2"/></svg>Run analysis</button></div></div>
+                    <div class="analysis-controls"><div class="severity-filters" id="severityFilters" role="group" aria-label="Filter findings by severity"><button class="severity-filter active" data-severity="all">All findings</button><button class="severity-filter" data-severity="high">High</button><button class="severity-filter" data-severity="medium">Medium</button><button class="severity-filter" data-severity="low">Low</button></div><label class="group-control">Group by <select id="analysisGrouping" aria-label="Group findings"><option value="rule">Rule</option><option value="table">Table</option></select></label></div>
+                    <div class="severity-summary" id="severitySummary"></div>
+                    <div class="analysis-grid" id="analysisGrid"><div class="panel analysis-card"><div class="loading"><span class="spinner"></span>Analyzing schema</div></div></div>
+                </section>
+                <section class="view" id="view-migrations">
+                    <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-dot"></span>Change intelligence</div><h1>Compare &amp; migrations</h1><p class="page-subtitle">Compare two SQLite database files and review schema changes.</p></div></div>
+                    <section class="panel prose-panel"><div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h12l-3-3M17 17H5l3 3"/><path d="M19 7a7 7 0 0 1 1 10M5 17a7 7 0 0 1-1-10"/></svg></span><div><h2 class="panel-title">Compare sources</h2><p class="panel-description">Select server-visible SQLite databases. Changes are previewed only; this screen never executes SQL.</p></div></div></div>
+                        <form id="migrationForm">
+                            <div class="migration-sources">
+                                <div class="migration-source"><strong>Source · baseline</strong><label for="baseSourceType">Database source</label><select id="baseSourceType"><option value="path">SQLite file path on the server</option><option value="current">Current workspace database</option><option value="demo_baseline">Built-in demo baseline</option></select><input class="form-input" id="migrationBase" required placeholder="e.g. backups/baseline.db" aria-label="Baseline database path" /></div>
+                                <div class="migration-source"><strong>Target · proposed</strong><label for="targetSourceType">Database source</label><select id="targetSourceType"><option value="path">SQLite file path on the server</option><option value="current">Current workspace database</option><option value="demo_target">Built-in demo target</option></select><input class="form-input" id="migrationTarget" required placeholder="e.g. releases/next.db" aria-label="Target database path" /></div>
+                            </div>
+                            <div class="migration-actions"><button class="button primary" id="migrationCompare" type="submit">Preview &amp; validate</button><button class="button" id="loadDemoMigration" type="button">Load demo comparison</button><button class="button" id="migrationExport" type="button" disabled>Export SQL preview</button><button class="button" id="migrationValidate" type="button" disabled>Validate again</button></div>
+                        </form>
+                        <div id="migrationOutput"><div class="empty-state">Choose a source and target to preview differences. No database will be modified.</div></div>
+                    </section>
+                </section>
+                <section class="view" id="view-docs">
+                    <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-dot"></span>Knowledge base</div><h1>Documentation</h1><p class="page-subtitle">Search and browse a structured data dictionary for your schema.</p></div></div>
+                    <div class="docs-toolbar"><input class="docs-search" id="docsSearch" type="search" placeholder="Search tables, columns, indexes…" aria-label="Search documentation" /><span class="docs-generated" id="docsGenerated">Not generated yet</span><div class="heading-actions"><button class="button" data-doc-export="json">JSON</button><button class="button" data-doc-export="html">HTML</button><button class="button primary" data-doc-export="markdown">Markdown</button></div></div>
+                    <div class="docs-layout"><aside class="panel docs-toc"><h2>Contents</h2><nav id="docsToc"><div class="docs-empty">Loading contents…</div></nav></aside><article class="panel docs-content" id="docsContent"><div class="docs-empty">Loading documentation…</div></article></div>
+                    <section class="panel prose-panel"><div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v5h5M8 12h8M8 16h8"/></svg></span><div><h2 class="panel-title">Documentation preview</h2><p class="panel-description">Generated directly from your current schema.</p></div></div></div><pre id="docsPreview">Loading documentation…</pre></section>
+                </section>
+                <section class="view" id="view-connections">
+                    <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-dot"></span>Data source</div><h1>Connections</h1><p class="page-subtitle">Status of the database source powering this workspace.</p></div></div>
+                    <section class="panel prose-panel"><div class="panel-heading"><div class="panel-title-wrap"><span class="panel-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v13c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><div><h2 class="panel-title">Current source</h2><p class="panel-description">This application reads the database selected by the server’s DB_PATH setting.</p></div></div><span class="status-pill" id="connectionPageStatus">Checking</span></div><div class="setting-row"><div><strong>Database engine</strong><small>SQLite</small></div><span class="tag">Local</span></div><div class="setting-row"><div><strong>Schema API</strong><small>/api/schema</small></div><span class="status-pill" id="schemaApiStatus">Checking</span></div><div class="setting-row"><div><strong>Change source</strong><small>Set DB_PATH in the Flask server environment to point at another database file.</small></div></div><div style="padding-top:13px"><button class="button primary" data-action="refresh">Test &amp; refresh source</button></div></section>
+                </section>
+                <section class="view" id="view-settings">
+                    <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-dot"></span>Preferences</div><h1>Settings</h1><p class="page-subtitle">Workspace behavior and accessibility options.</p></div></div>
+                    <div class="settings-grid"><section class="panel prose-panel"><h2 class="panel-title">Workspace</h2><div class="setting-row"><div><strong>Database source</strong><small>Managed by the Flask server’s DB_PATH environment variable.</small></div><span class="tag">SQLite</span></div><div class="setting-row"><div><strong>Schema refresh</strong><small>Reload the current schema and its quality analysis.</small></div><button class="button" data-action="refresh">Refresh now</button></div></section><section class="panel prose-panel"><h2 class="panel-title">Accessibility</h2><div class="setting-row"><div><strong>Reduced motion</strong><small>Animations respect your operating system preference.</small></div><span class="tag">System</span></div><div class="setting-row"><div><strong>Responsive layout</strong><small>Optimized for desktop, tablet, and mobile screens.</small></div><span class="tag">Enabled</span></div></section></div>
+                </section>
+            </main>
+        </div>
+    </div>
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+    <script src="/static/visualizer.js"></script>
+</body>
+</html>
